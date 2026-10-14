@@ -20,47 +20,32 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
+          # Устанавливаем Java и базовые утилиты для сборки
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
-      - name: Setup Android SDK and Accept Licenses
+      # --- ГЛАВНОЕ ИЗМЕНЕНИЕ ЗДЕСЬ ---
+      # Используем официальный экшен для установки Android SDK. 
+      # Он сам примет все лицензии и установит нужные пакеты.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-33 build-tools;33.0.2 ndk;25.1.8937393'
+      
+      # Проверяем, что aidl действительно есть после работы экшена
+      - name: Verify AIDL installation
         run: |
-          # Скачиваем самую свежую версию командных инструментов
-          curl https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
-          mkdir -p $HOME/android-sdk/cmdline-tools/latest
-          unzip cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
-          mv $HOME/android-sdk/cmdline-tools/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/
-          rm -rf $HOME/android-sdk/cmdline-tools/cmdline-tools
-          
-          # Добавляем пути в переменные окружения для текущей сессии
-          export ANDROID_HOME=$HOME/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-          
-          # --- САМОЕ ВАЖНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-          # Принудительно принимаем ВСЕ лицензии через yes | sdkmanager
-          echo "--- Принятие лицензий ---"
-          yes | sdkmanager --licenses || true
-          
-          # Устанавливаем нужные пакеты (после принятия лицензий они скачаются нормально)
-          echo "--- Установка пакетов SDK ---"
-          sdkmanager "platforms;android-33" "build-tools;33.0.0" "ndk;25.1.8937393" > /dev/null
-          
-          # Сохраняем пути для следующих шагов
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/build-tools/33.0.0" >> $GITHUB_PATH
-          # ---------------------------------------
-          
-      - name: Debug check files and environment
-        run: |
-          ls -la
-          which aidl
-          which java
-          which buildozer
+          echo "--- Checking for aidl ---"
+          find $ANDROID_HOME/build-tools -name "aidl" || true
+          ls -la $ANDROID_HOME/build-tools/
           
       - name: Build APK with Buildozer
+        env:
+          # Передаем пути явно, чтобы buildozer их видел
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
+          # Запускаем сборку с подробным логом (-v), если упадет — будет видно почему
           buildozer android debug
 
       - name: Upload Artifact
