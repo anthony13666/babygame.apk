@@ -20,7 +20,6 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          # Устанавливаем Java и базовые утилиты для сборки
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
