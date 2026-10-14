@@ -23,25 +23,28 @@ jobs:
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
-      # --- ИСПОЛЬЗУЕМ ГОТОВЫЙ ЭКШЕН ДЛЯ УСТАНОВКИ SDK ---
+      # --- ГЛАВНОЕ ИЗМЕНЕНИЕ ЗДЕСЬ ---
+      # Используем официальный экшен для установки Android SDK. 
+      # Он сам примет все лицензии и установит нужные пакеты.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-33 build-tools;33.0.0 ndk;25.1.8937393'
+          packages: 'platforms;android-33 build-tools;33.0.2 ndk;25.1.8937393'
       
-      - name: Verify Environment
+      # Проверяем, что aidl действительно есть после работы экшена
+      - name: Verify AIDL installation
         run: |
-          echo "--- Checking directories ---"
+          echo "--- Checking for aidl ---"
+          find $ANDROID_HOME/build-tools -name "aidl" || true
           ls -la $ANDROID_HOME/build-tools/
-          echo "--- Checking binaries ---"
-          which aidl || echo "aidl not found in PATH"
-          java -version
           
       - name: Build APK with Buildozer
         env:
+          # Передаем пути явно, чтобы buildozer их видел
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
           JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
+          # Запускаем сборку с подробным логом (-v), если упадет — будет видно почему
           buildozer android debug
 
       - name: Upload Artifact
