@@ -9,20 +9,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
       
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev build-essential ccache gcc-9 g++-9
+          sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev build-essential ccache gcc-9 g++-9 git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
-      - name: Build APK
+      - name: Setup Android SDK
         run: |
           export ANDROID_HOME=$HOME/android-sdk
           mkdir -p $ANDROID_HOME/cmdline-tools/latest/bin
@@ -32,10 +33,16 @@ jobs:
           rm -rf $ANDROID_HOME/cmdline-tools/cmdline-tools
           echo "y" | sdkmanager --licenses > /dev/null || true
           sdkmanager "platforms;android-33" "build-tools;33.0.0" > /dev/null
-          buildozer android debug
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
           
+      - name: Build APK with Buildozer
+        env:
+          ANDROID_HOME: ${{ github.workspace }}/android-sdk
+        run: |
+          buildozer android debug
+
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: babygame-apk
           path: bin/*.apk
