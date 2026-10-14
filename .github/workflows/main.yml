@@ -23,10 +23,10 @@ jobs:
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
-      # --- НОВАЯ СТРАТЕГИЯ УСТАНОВКИ SDK ---
-      - name: Setup Android SDK manually
+      # --- МАГИЯ ПРИНЯТИЯ ЛИЦЕНЗИЙ ---
+      - name: Setup Android SDK & Force Accept Licenses
         run: |
-          echo "--- Downloading Command Line Tools ---"
+          # Скачиваем cmdline-tools
           mkdir -p $HOME/android-sdk/cmdline-tools/latest/bin
           curl https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdtools.zip
           unzip -q cmdtools.zip -d $HOME/android-sdk/cmdline-tools
@@ -36,42 +36,33 @@ jobs:
           export ANDROID_HOME=$HOME/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           
-          echo "--- Accepting Licenses ---"
-          yes | sdkmanager --licenses || true
+          # Создаем директорию licenses вручную и пишем туда хеши разрешений
+          # Это самый надежный способ обойти интерактивный запрос "Accept? y/N"
+          mkdir -p $ANDROID_HOME/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f93273ebf9ca940ff" >> $ANDROID_HOME/licenses/android-sdk-license
           
-          echo "--- Installing Specific Versions ---"
-          # Ставим СТАБИЛЬНЫЕ версии, которые точно есть и работают со старым NDK
-          sdkmanager "platforms;android-33" \
-                     "build-tools;30.0.3" \
-                     "ndk;25.1.8937393" \
-                     "cmake;3.22.1" > /dev/null
+          # Теперь sdkmanager увидит эти файлы и НЕ будет спрашивать разрешение
+          sdkmanager "platforms;android-33" "build-tools;33.0.0" "ndk;25.1.8937393" > /dev/null
           
-          echo "--- Creating Symlink for AIDL ---"
-          # Buildozer часто ищет aidl в корне build-tools или конкретной папке.
-          # Создаем ярлык, чтобы он точно нашел исполняемый файл.
-          ln -sf $ANDROID_HOME/build-tools/30.0.3/aidl $ANDROID_HOME/build-tools/aidl || true
-          
-          # Сохраняем переменные окружения для следующих шагов
+          # Сохраняем переменные окружения
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/build-tools/30.0.3:$PATH" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/build-tools/33.0.0" >> $GITHUB_PATH
           
-      - name: Verify Environment
+      - name: Debug check files and environment
         run: |
-          which java
+          ls -la $ANDROID_HOME/build-tools/
           which aidl
-          ls $ANDROID_HOME/build-tools/
+          java -version
           
-      # --- СБОРКА С ЗАПРЕТОМ ОБНОВЛЕНИЙ ---
       - name: Build APK with Buildozer
         env:
-          # Говорим buildozer НЕ трогать установку пакетов, так как мы всё сделали выше
-          BUILDOZER_NO_UPDATE_SDK: 1 
-          ANDROID_API_MIN: 21
-          ANDROID_API_TARGET: 33
-          ANDROID_BUILD_TOOLS_VERSION: 30.0.3
-          ANDROID_NDK_VERSION: 25.1.8937393
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
         run: |
-          # Используем флаг -v для подробного вывода, если снова упадет
           buildozer android debug
 
       - name: Upload Artifact
