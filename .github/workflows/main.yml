@@ -23,50 +23,36 @@ jobs:
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
-      # --- МАГИЯ ПРИНЯТИЯ ЛИЦЕНЗИЙ ---
+      # --- НАДЕЖНАЯ УСТАНОВКА SDK С ПРОВЕРКОЙ ---
       - name: Setup Android SDK & Force Accept Licenses
         run: |
-          # Скачиваем cmdline-tools
-          mkdir -p $HOME/android-sdk/cmdline-tools/latest/bin
-          curl https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdtools.zip
-          unzip -q cmdtools.zip -d $HOME/android-sdk/cmdline-tools
-          mv $HOME/android-sdk/cmdline-tools/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/
-          rm -rf $HOME/android-sdk/cmdline-tools/cmdline-tools
-          
           export ANDROID_HOME=$HOME/android-sdk
+          mkdir -p $ANDROID_HOME/cmdline-tools/latest/bin
+          
+          echo "--- Downloading Command Line Tools ---"
+          curl https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdtools.zip
+          unzip -q cmdtools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
+          rm -rf $ANDROID_HOME/cmdline-tools/cmdline-tools
+          
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
           
-          # Создаем директорию licenses вручную и пишем туда хеши разрешений
-          # Это самый надежный способ обойти интерактивный запрос "Accept? y/N"
+          echo "--- Creating License Files Manually (The Only Way That Works) ---"
           mkdir -p $ANDROID_HOME/licenses
+          # Эти хеши означают "Я принимаю все лицензии Google"
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $ANDROID_HOME/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $ANDROID_HOME/licenses/android-sdk-license
           echo "24333f8a63b6825ea9c5514f93273ebf9ca940ff" >> $ANDROID_HOME/licenses/android-sdk-license
           
-          # Теперь sdkmanager увидит эти файлы и НЕ будет спрашивать разрешение
-          sdkmanager "platforms;android-33" "build-tools;33.0.0" "ndk;25.1.8937393" > /dev/null
+          echo "--- Installing Packages ---"
+          # Используем sdkmanager напрямую. Если он упадет — скрипт остановится.
+          sdkmanager --verbose "platforms;android-33" "build-tools;33.0.0" "ndk;25.1.8937393"
           
-          # Сохраняем переменные окружения
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/build-tools/33.0.0" >> $GITHUB_PATH
+          echo "--- VERIFYING INSTALLATION ---"
+          if [ ! -d "$ANDROID_HOME/build-tools/33.0.0" ]; then
+            echo "ERROR: build-tools folder was NOT created!"
+            ls -la $ANDROID_HOME
+            exit 1
+          fi
           
-      - name: Debug check files and environment
-        run: |
-          ls -la $ANDROID_HOME/build-tools/
-          which aidl
-          java -version
-          
-      - name: Build APK with Buildozer
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
-        run: |
-          buildozer android debug
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: babygame-apk
-          path: bin/*.apk
+          if [ ! -f "$ANDROID_HOME/build-tools/33.0.0/
