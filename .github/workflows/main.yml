@@ -15,34 +15,33 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Используем актуальную версию Python
+          python-version: '3.9'
           
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          # Устанавливаем только необходимые современные пакеты
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
       - name: Setup Android SDK
-        run: |
-          export ANDROID_HOME=$HOME/android-sdk
-          mkdir -p $ANDROID_HOME/cmdline-tools/latest/bin
-          wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdtools.zip
-          unzip cmdtools.zip -d $ANDROID_HOME/cmdline-tools
-          mv $ANDROID_HOME/cmdline-tools/cmdline-tools/* $ANDROID_HOME/cmdline-tools/latest/
-          rm -rf $ANDROID_HOME/cmdline-tools/cmdline-tools
-          echo "y" | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-33" "build-tools;33.0.0" > /dev/null
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-33 build-tools;33.0.0 ndk;25.1.8937393'
           
-      - name: Debug check files
-        run: ls -la
+      - name: Debug check files and environment
+        run: |
+          ls -la
+          echo "--- Environment ---"
+          env | grep ANDROID
+          echo "--- Checking tools ---"
+          which java
+          which sdkmanager
+          which buildozer
           
       - name: Build APK with Buildozer
-        env:
-          ANDROID_HOME: ${{ github.workspace }}/android-sdk
         run: |
+          # Принудительно указываем путь к NDK, если он не подхватился автоматически
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393
           buildozer android debug
 
       - name: Upload Artifact
