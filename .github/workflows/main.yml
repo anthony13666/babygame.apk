@@ -23,25 +23,44 @@ jobs:
           sudo apt-get install -y openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncursesw5-dev cmake libffi-dev libssl-dev build-essential git zip unzip
           pip3 install --upgrade cython virtualenv buildozer
           
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-33 build-tools;33.0.0 ndk;25.1.8937393'
+      - name: Setup Android SDK and Accept Licenses
+        run: |
+          # Скачиваем самую свежую версию командных инструментов
+          curl https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          mkdir -p $HOME/android-sdk/cmdline-tools/latest
+          unzip cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
+          mv $HOME/android-sdk/cmdline-tools/cmdline-tools/* $HOME/android-sdk/cmdline-tools/latest/
+          rm -rf $HOME/android-sdk/cmdline-tools/cmdline-tools
+          
+          # Добавляем пути в переменные окружения для текущей сессии
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          
+          # --- САМОЕ ВАЖНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+          # Принудительно принимаем ВСЕ лицензии через yes | sdkmanager
+          echo "--- Принятие лицензий ---"
+          yes | sdkmanager --licenses || true
+          
+          # Устанавливаем нужные пакеты (после принятия лицензий они скачаются нормально)
+          echo "--- Установка пакетов SDK ---"
+          sdkmanager "platforms;android-33" "build-tools;33.0.0" "ndk;25.1.8937393" > /dev/null
+          
+          # Сохраняем пути для следующих шагов
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/build-tools/33.0.0" >> $GITHUB_PATH
+          # ---------------------------------------
           
       - name: Debug check files and environment
         run: |
           ls -la
-          echo "--- Environment ---"
-          env | grep ANDROID
-          echo "--- Checking tools ---"
+          which aidl
           which java
-          which sdkmanager
           which buildozer
           
       - name: Build APK with Buildozer
         run: |
-          # Принудительно указываем путь к NDK, если он не подхватился автоматически
-          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393
           buildozer android debug
 
       - name: Upload Artifact
